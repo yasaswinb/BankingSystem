@@ -1,0 +1,66 @@
+const N = 2//Setting the upper limit for the current account 
+const STARTING_BALANCE = 0//Initializing the starting balance of the bank
+range ACCOUNT_BALANCE = 0..N//Initializing the range for bank accounts
+
+//initializing the values for deposits and withdrawals
+const MOBILE_PRICE = 1//initializing a value for the mobile phone
+const COURSE_FEE = 2//initializing a value for course fee
+const GM_GIFT = 2//initializing a value for grandmother's gift
+const LOAN_AMT = 1//initializing a value for loan amount
+
+set USERS_SET = {student, grandmother, loan_company, university}//initializing the users set
+
+//This extends the alphabet and block performing independently
+set ACTION_SET = {read_balance[ACCOUNT_BALANCE], write_balance[ACCOUNT_BALANCE ], acquire, release, withdraw[ACCOUNT_BALANCE],
+					deposit[ACCOUNT_BALANCE], insufficient_funds}
+
+UNSAFE_BANK_ACCOUNT = US_BALANCE[STARTING_BALANCE],//bank account process which facilitate to do transactions without mutual exclusiveness
+
+
+US_BALANCE[ b : ACCOUNT_BALANCE ] = ( read_balance[ b ] -> US_BALANCE[ b ]
+								   		| withdraw[w:ACCOUNT_BALANCE] -> 
+											( when(b<w) insufficient_funds ->  US_BALANCE[ b ] 
+											| when((b-w) >= 0) write_balance[b-w] -> US_BALANCE[ b-w ] )           
+								   		| deposit[d:ACCOUNT_BALANCE] -> write_balance[ nb: ACCOUNT_BALANCE] -> US_BALANCE[ nb ] 
+								   ) .
+
+
+LOCK = ( acquire -> release -> LOCK ) .//process which facilitate to maintain the mutual exclusiveness
+
+|| SAFE_BANK_ACCOUNT = (LOCK || UNSAFE_BANK_ACCOUNT) .//Inegrate the mutual exclusivness with the help of LOCK
+
+//Student process that withdraws the mobile phone money
+STUDENT = ( acquire -> read_balance[bb:ACCOUNT_BALANCE] ->
+								 (  
+									withdraw[MOBILE_PRICE] -> 
+										( when(bb < MOBILE_PRICE) insufficient_funds -> release ->  STUDENT 
+										| when(bb-MOBILE_PRICE>= 0) buy_mobile -> write_balance[bb-MOBILE_PRICE] -> release ->  STUDENT )
+								 )
+		   ) + ACTION_SET .
+//Grandmother process that deposits the gift amount
+GRANDMOTHER = ( acquire -> read_balance[bb:ACCOUNT_BALANCE] -> give_gift ->
+								  (	
+										when(bb+GM_GIFT <= N) deposit[GM_GIFT] -> write_balance[bb+GM_GIFT] -> send_e_birthday_card -> release 
+											->  GRANDMOTHER
+								  		| when(bb+GM_GIFT > N) exceed_limit -> release -> GRANDMOTHER 
+								  )
+			) + ACTION_SET .
+//Loan company process that deposits the laon amount
+LOAN_COMPANY = ( acquire -> read_balance[bb:ACCOUNT_BALANCE] -> provide_loan ->
+								  (	
+										when(bb+LOAN_AMT <= N) deposit[LOAN_AMT] -> write_balance[bb+LOAN_AMT] -> release ->  LOAN_COMPANY
+								  		| when(bb+LOAN_AMT > N) exceed_limit -> release -> LOAN_COMPANY
+								  )
+			) + ACTION_SET .
+
+//University process that withdraws the course fee
+UNIVERSITY = ( acquire -> read_balance[bb:ACCOUNT_BALANCE] ->
+								 ( 
+								  	withdraw[COURSE_FEE] -> 
+										(when(bb < COURSE_FEE) insufficient_funds ->  release ->  UNIVERSITY 
+										| when(bb-COURSE_FEE >= 0)  deduct_university_fee -> write_balance[bb-COURSE_FEE] -> release ->  UNIVERSITY)
+								  )
+			) + ACTION_SET.
+
+//Process the composite processes which models the bank system
+|| SAFE_BANK_SYSTEM = ( USERS_SET::SAFE_BANK_ACCOUNT || student:STUDENT || grandmother:GRANDMOTHER || loan_company:LOAN_COMPANY || university:UNIVERSITY) .
